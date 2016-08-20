@@ -1,0 +1,75 @@
+clear;
+clc;
+tic;
+imgIn = imread('barbara.png');
+[rows,~] = size(imgIn);
+imgA = imgIn(rows/4:3*rows/4,rows/4:3*rows/4);
+imgRotated = imrotate(imgA,20);
+[rows,~] = size(imgRotated);
+imgB = imgRotated(rows/4:3*rows/4,rows/4:3*rows/4);
+imgA = transformation(imgA,20*pi/180);
+[rowsA,colsA] = size(imgA);
+[rowsB,colsB] = size(imgB);
+
+figure()
+imshow(imgA);
+figure()
+imshow(imgB);
+
+patchSize = 16;
+t = patchSize;
+no_patchesA = length(1:(patchSize/2):rowsA-patchSize+1)*length(1:(patchSize/2):colsA-patchSize+1);
+xPatchA = length(1:(patchSize/2):rowsA-patchSize+1);
+yPatchA = length(1:(patchSize/2):colsA-patchSize+1); 
+no_patchesB = length(1:(patchSize/2):rowsB-patchSize+1)*length(1:(patchSize/2):colsB-patchSize+1);
+xPatchB = length(1:(patchSize/2):rowsB-patchSize+1);
+yPatchB = length(1:(patchSize/2):colsB-patchSize+1);
+PatchA = zeros(t,t,no_patchesA);
+PatchB = zeros(t,t,no_patchesB);
+weight = zeros(no_patchesA,no_patchesB);
+indicatorA = 0;
+indicatorB = 0;
+
+for i = 1:(t/2):rowsA-t+1
+    i
+    for j = 1:(t/2):colsA-t+1
+        indicatorA = indicatorA + 1;
+        PatchA(:,:,indicatorA) = imgA(i:i+t-1,j:j+t-1);
+        tempPatchA = PatchA(:,:,indicatorA); 
+        indicatorB = 0;
+        for k = 1:(t/2):rowsB-t+1
+            for l = 1:(t/2):colsB-t+1
+                indicatorB = indicatorB +1;
+                PatchB(:,:,indicatorB) = imgB(k:k+t-1,l:l+t-1);
+                tempPatchB = PatchB(:,:,indicatorB); 
+    %             weight((i-1)*xPatchA+j,(k-1)*xPatchB+l) = histIntersection(tempPatchA,tempPatchB); % 16 x 16 patches
+                weight(indicatorA,indicatorB) = histIntersection(tempPatchA,tempPatchB); % 16 x 16 patches
+            end
+        end
+    end
+end
+
+weight = weight.*(weight>60); % discarding edges with weight less than a fixed threshold
+[val,mA,mB]=bipartite_matching(weight);
+% m1-m2 have mapping of patch number in image A which should match to patch
+% number in image B
+[mBSorted,index] = sort(mB);
+mASorted = mA(index);
+
+
+% Reconstruct Image
+    reconstructedImg = zeros(rowsB, colsB); % because image B is the smaller of the two
+    weights = zeros(rowsB, colsB);
+    for i = 1:(t/2):rowsB-t+1
+        for j = 1:(t/2):colsB-t+1
+            patchNumberB = ((((i-1)/(t/2) + 1)-1)*xPatchB) + ((j-1)/(t/2) + 1); % between 1 to 81
+            patchNumberB
+            patchNumberA = mASorted(patchNumberB);
+            reconstructedImg(i:i+patchSize-1,j:j+patchSize-1) = ...
+                reconstructedImg(i:i+patchSize-1,j:j+patchSize-1) + ...
+               PatchA(:,:,patchNumberA);
+            weights(i:i+patchSize-1,j:j+patchSize-1) = weights(i:i+patchSize-1,j:j+patchSize-1) + 1;
+         end
+    end
+    reconstructedImg = reconstructedImg ./ weights;
+toc;
